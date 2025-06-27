@@ -70,6 +70,7 @@ class Embeddings(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.token_embeds = nn.Embedding(num_embeddings=config.vocab_size, embedding_dim=config.hidden_size)
+        # learnable position embedding
         self.pos_embeds = nn.Embedding(num_embeddings=config.max_position_embeddings, embedding_dim=config.hidden_size)
         self.layer_norm = nn.LayerNorm(normalized_shape=config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout()
@@ -82,10 +83,46 @@ class Embeddings(nn.Module):
         pos_embeds = self.pos_embeds(pos_ids).to(input_ids.device)
 
         embeds = token_embeds + pos_embeds
+        embeds = self.layer_norm(embeds)
         embeds = self.dropout(embeds)
 
         return embeds
-    
+
+"""
+#########################################
+The method of abosulte position embedding
+#########################################
+class Embeddings(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.token_embeds = nn.Embedding(num_embeddings=config.vocab_size, embedding_dim=config.hidden_size)
+        # abosulte position embedding
+        self.register_buffer("pos_embeds", self._build_sinusoidal_position_embedding(config.max_position_embeddings, config.hidden_size))
+        self.layer_norm = nn.LayerNorm(normalized_shape=config.hidden_size, eps=1e-12)
+        self.dropout = nn.Dropout()
+
+    def _build_sinusoidal_position_embedding(self, max_len, dim):
+        position = torch.arange(max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, dim, 2).float() * (-math.log(10000.0) / dim))
+        
+        pe = torch.zeros(max_len, dim)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        
+        return pe.unsqueeze(0)
+
+    def forward(self, input_ids):
+        seq_len = input_ids.size(1)
+
+        token_embeds = self.token_embeds(input_ids)
+        pos_embeds = self.pos_embeds[:, :seq_len, :].to(input_ids.device)
+        
+        embeds = token_embeds + pos_embeds
+        embeds = self.layer_norm(embeds)
+        embeds = self.dropout(embeds)
+
+        return embeds
+"""
 class TransformerEncoderLayer(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -119,12 +156,13 @@ class TransformerDecoderLayer(nn.Module):
         self.layer_norm_1 = nn.LayerNorm(config.hidden_size)
         self.layer_norm_2 = nn.LayerNorm(config.hidden_size)
         self.layer_norm_3 = nn.LayerNorm(config.hidden_size)
-        self.masked_attn = MultiHeadAttention(config)
-        self.attn = MultiHeadAttention(config)
+        self.masked_attn = MultiHeadAttention(config) # self attention layer with causal mask
+        self.attn = MultiHeadAttention(config) # cross attention layer
         self.feed_forward = FeedForward(config)
     
     def forward(self, x,  enc_output, tgt_mask=None, mem_mask=None):
         hidden_state_1 = self.layer_norm_1(x)
+        # decoder can only attend to previous tokens
         x = x + self.masked_attn(hidden_state_1, hidden_state_1, hidden_state_1,
                                  mask=tgt_mask)
         hidden_state_2 = self.layer_norm_2(x)
@@ -141,6 +179,7 @@ class TransformerDecoder(nn.Module):
 
     def forward(self, x, enc_output, tgt_mask=None, mem_mask=None):
         batch_size, seq_len, _ = x.size()
+        # tgt_mask must be a lower triangular matrix
         if tgt_mask is None:
             causal_mask = torch.tril(torch.ones((seq_len, seq_len), device=x.device))
             tgt_mask = causal_mask.unsqueeze(0).expand(batch_size, -1, -1)
