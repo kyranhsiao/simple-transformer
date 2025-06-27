@@ -114,7 +114,7 @@ def train(args):
             # logger.info(f"{'Loss: ':<10}{loss.item():.6f}")
         
         epoch_loss = total_loss / len(train_dataset) / args.batch_size
-        logger.info(f"Epoch [{epoch}/{args.num_epochs}] loss: {epoch_loss:.6f}")
+        logger.info(f"Epoch [{epoch:>4}/{args.num_epochs}] loss: {epoch_loss:.6f}")
 
         if epoch % args.eval_interval == 0:
             eval(transformer, tokenizer, eval_dataset, args.batch_size)
