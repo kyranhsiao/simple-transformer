@@ -7,6 +7,10 @@ Needless to say, you’ve definitely come across the legendary paper:
 
 Also, big shoutout to 🙌 [Transformers快速入门](https://transformers.run/) for the inspiration and practical insights that helped shape this implementation.
 
+We only provide two tiny datasets for training and evaluation under a translation task.
+
+**NOTE: YOU CAN RUN THIS RESPOSITORY SUCCESSFULLY, BUT THE GENERATION MAY NOT MAKE SENSE.**
+
 ### 📝 TODO
 🔲 Add annotations.
 
